@@ -36,7 +36,7 @@ for i = 1:num_pulse-1
     mat_time(i, :) = backscatter(1 + N * (i-1) : i * N); % Assign amplitude
 end
 
-range_data = linspace(0, max_range, 4*N);
+range_data = linspace(0, max_range, 6*N);
 
 %% Build matrix for up-chirp and down-chirp data
 up_data_parsed = zeros(num_pulse, N);   % Matrix to store up-chirp data
@@ -45,7 +45,7 @@ time = zeros(1, num_pulse);             % Vector to store time for each pulse
 pulse_count = 0;                        % Counter for storing data row-by-row
 
 % Loop through sync_pulse to find start of each pulse
-for i = 2:(length(sync_pulse) - 2*N)
+for i = 2:(length(sync_pulse) - 6*N)
     % Detect the rising edge in sync signal (new pulse start)
     if sync_pulse(i,1) == 1 && sync_pulse(i-1,1) == 0 
         pulse_count = pulse_count + 1;  % Increment pulse count
@@ -80,7 +80,7 @@ for t = 2:size(MTI2,1)
 end
 
 % MTI2 FFT (转换到频域)
-sfft_MTI2 = fft(MTI2_final, 4*N, 2);  
+sfft_MTI2 = fft(MTI2_final, 6*N, 2);  
 
 %% 3-step MTI
 MTI3 = zeros(size(up_data_parsed));  % Initialize 3-step MTI matrix
@@ -91,7 +91,7 @@ end
 
 
 % IFFT 部分用于时域恢复 (可选操作，不影响最后结果)
-ifft_MTI2 = ifft(sfft_MTI2, 4*N, 2);
+ifft_MTI2 = ifft(sfft_MTI2, 6*N, 2);
 
 % 对恢复的时域信号进行进一步处理（如果需要）
 % 此处我们继续使用原来的 FFT 结果，而不是 IFFT 结果
@@ -104,7 +104,7 @@ ifft_MTI2_dB(ifft_MTI2_dB < -1000000) = -1000000; % Make sure no -Inf values mes
 
 % Define variables for tfridge
 fridgeLength = size(ifft_MTI2_dB, 2); % Length of the frequency axis
-freqs = linspace(-fs/2, fs/2, 4*N); % Frequency axis for FFT
+freqs = linspace(0, fs/2, 6*N); % Frequency axis for FFT
 numRidges = 1; % Number of ridges to extract
 
 % Find fridges
@@ -119,7 +119,7 @@ xlabel('Range (m)');
 ylabel('Time (s)');
 colorbar;
 clim([-50 0]);
-title("Range-spectogram after 2 steps MTI");
+title("Range-spectogram after 2 steps MTI with 2N");
 
 %% 3-step MTI with Zero Padding (4*N)
 MTI3 = zeros(size(up_data_parsed));  % Initialize 3-step MTI matrix
@@ -129,7 +129,7 @@ for t = 3:size(up_data_parsed, 1)
 end
 
 % Perform FFT with zero-padding (size 4*N)
-sfft_MTI3 = fft(MTI3, 4*N, 2);  % 4*N zero-padding along the second dimension
+sfft_MTI3 = fft(MTI3, 6*N, 2);  % 4*N zero-padding along the second dimension
 
 % Convert to dB scale
 ifft_MTI3_dB = 20*log10(abs(sfft_MTI3));
@@ -137,7 +137,7 @@ ifft_MTI3_dB = ifft_MTI3_dB(:, 1:end/2) - max(max(ifft_MTI3_dB)); % Normalize da
 ifft_MTI3_dB(ifft_MTI3_dB < -1000000) = -1000000; % Avoid -Inf values
 
 % Define range axis
-range_data = linspace(0, max_range, 4*N);
+range_data = linspace(0, max_range, 6*N);
 
 %% Plotting the 3-step MTI result
 figure();
@@ -147,5 +147,5 @@ xlabel('Range (m)');
 ylabel('Time (s)');
 colorbar;
 clim([-50 0]);  % Adjust color limits as needed
-title('Range-Spectrogram after 3-step MTI');
+title('Range-Spectrogram after 3-step MTI with 6n');
 
