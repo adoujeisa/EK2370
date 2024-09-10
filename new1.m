@@ -20,7 +20,6 @@ num_pulse = round(T / Tp);    % Total number of pulses
 
 % Initialize time-domain matrix
 mat_time = zeros(num_pulse, N); 
-
 for i = 1:num_pulse-1
     mat_time(i, :) = data(1 + N * (i-1) : i * N); % Assign amplitude
 end
@@ -33,7 +32,7 @@ mat_time = mat_time - data_mean; % Remove clutter by subtracting the mean
 
 %%zero padding for fft 使用 reshape 函数将原始数据矩阵 data 重塑为时间域矩阵 mat_time，每一行对应一个脉冲。
 for i = 1:num_pulse-1
-    mat_freq(i,:)= 20*log(abs((fft(mat_time(i,:),4*N))));
+    mat_freq(i,:)= 20*log(abs((fft(mat_time(i,:),6*N))));
  end
 
 
@@ -51,7 +50,7 @@ fft_data_norm_2 = fft_data_db - max_vals;
 
 
 % Velocity array
-f_doppler = linspace(0, fs/2, N); % Doppler frequency axis
+f_doppler = linspace(0, fs/2, 6*N); % Doppler frequency axis
 velocity = f_doppler * c / (2 * f_center); % Convert Doppler frequency to velocity
 
 % Time array
@@ -63,7 +62,7 @@ figure (1);
 imagesc(velocity, time_array, fft_data_norm); % Plot the normalized FFT data
 xlabel('Velocity (m/s)');
 ylabel('Time (s)');
-title('Velocity-Time Map with noormalization 1');
+title('Velocity-Time Map with pulse time = 0.1s noormalization 1 with 6N');
 colorbar; % Add color bar to represent intensity
 
 xlim([0 30]); % Set the range for the x-axis (velocity) from 0 to 30 m/s
@@ -73,7 +72,7 @@ figure (2);
 imagesc(velocity, time_array, fft_data_norm_2); % Plot the normalized FFT data
 xlabel('Velocity (m/s)');
 ylabel('Time (s)');
-title('Velocity-Time Map with noormalization 2');
+title('Velocity-Time Map with pulse time = 0.1s noormalization 2 with 6N');
 colorbar; % Add color bar to represent intensity
 
 xlim([0 30]); % Set the range for the x-axis (velocity) from 0 to 30 m/s
