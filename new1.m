@@ -31,7 +31,7 @@ mat_time = mat_time - data_mean; % Remove clutter by subtracting the mean
 %%
 
 
-%%zero padding for fft
+%%zero padding for fft 使用 reshape 函数将原始数据矩阵 data 重塑为时间域矩阵 mat_time，每一行对应一个脉冲。
 for i = 1:num_pulse-1
     mat_freq(i,:)= 20*log(abs((fft(mat_time(i,:),4*N))));
  end
@@ -66,8 +66,8 @@ ylabel('Time (s)');
 title('Velocity-Time Map with noormalization 1');
 colorbar; % Add color bar to represent intensity
 
-xlim([0 30]); % Set the range for the x-axis (velocity) from -10 to 10 m/s
-clim([-45 0]); % Set the color axis range for the colorbar, e.g., from -30 dB to 0 dB
+xlim([0 30]); % Set the range for the x-axis (velocity) from 0 to 30 m/s
+clim([-45 0]); % Set the color axis range for the colorbar, e.g., from -45 dB to 0 dB
 
 figure (2);
 imagesc(velocity, time_array, fft_data_norm_2); % Plot the normalized FFT data
@@ -76,5 +76,5 @@ ylabel('Time (s)');
 title('Velocity-Time Map with noormalization 2');
 colorbar; % Add color bar to represent intensity
 
-xlim([0 30]); % Set the range for the x-axis (velocity) from -10 to 10 m/s
-clim([-15 0]); % Set the color axis range for the colorbar, e.g., from -30 dB to 0 dB
+xlim([0 30]); % Set the range for the x-axis (velocity) from 0 to 30 m/s
+clim([-15 0]); % Set the color axis range for the colorbar, e.g., from -15 dB to 0 dB
