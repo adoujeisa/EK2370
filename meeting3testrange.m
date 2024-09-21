@@ -223,3 +223,46 @@ colorbar;
 clim([-50 0]);  % 根据需要调整颜色限制
 title('Range-Spectrogram after 3-step MTI with 6n');
 
+% FMCW模式下的伪实时距离测量影片 (可选任务)
+video_fmcw = VideoWriter('FMCW_Range_Measurement.avi');
+open(video_fmcw);
+
+figure;
+range_trace = []; % 用于存储所有的距离点
+time_trace = [];  % 用于存储所有的时间点
+
+for i = 1:num_pulse-1
+    % 计算当前脉冲的FFT
+    fft_current = fft(mat_time(i,:), 6*N);
+    fft_current_db = 20 * log10(abs(fft_current));
+    
+    % 计算距离
+    [~, max_idx] = max(fft_current_db);
+    current_range = max_idx * (c / (2 * f_center * Tp)); % 距离公式
+    
+    % 记录当前时间和距离
+    range_trace = [range_trace, current_range];
+    time_trace = [time_trace, Tp * i];
+    
+    % 绘制当前所有的点，而不是逐个点
+    plot(time_trace, range_trace, 'bo-');
+    xlabel('时间 (秒)');
+    ylabel('距离 (米)');
+    title('实时/伪实时距离测量');
+    xlim([0, num_pulse * Tp]);
+    ylim([0, 50]);  % 根据实际需要调整Y轴范围
+    grid on;
+    
+    % 刷新图像
+    drawnow; % 确保图形刷新
+    
+    % 替换getframe，用saveas保存当前帧为图像文件
+    filename = sprintf('frame_%03d.png', i); % 保存每一帧为PNG文件
+    saveas(gcf, filename); % 保存当前图像为文件
+    
+    % 使用VideoWriter将保存的图像文件写入视频
+    img = imread(filename); % 读取保存的图像
+    writeVideo(video_fmcw, im2frame(img)); % 将图像写入视频帧
+end
+
+close(video_fmcw);
