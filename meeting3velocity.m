@@ -4,7 +4,7 @@ clc;
 
 %% COMPUTE VELOCITY FROM AUDIO FILE
 % Read the audiofile 
-[y, fs] = audioread('Recording (3).m4a'); 
+[y, fs] = audioread('Recording (4).m4a'); 
 
 % Take care of data inversion by the sound card
 data = -y(:, 1); % Intensity of the received signal
@@ -99,3 +99,41 @@ xlabel('Time (s)');
 ylabel('V (m/s)');
 title('v-t');
 grid on;
+
+% CW Movie of real-time/pseudo real-time velocity measurements
+% 为什么这俩的scale不一样啊？？？？？？？
+video_cw = VideoWriter('CW_Velocity_Measurement.avi');
+open(video_cw);
+
+figure;
+velocity_trace = []; % 用于存储所有的速度点
+time_trace = [];     % 用于存储所有的时间点
+
+for i = 1:num_pulse-1
+    % 计算当前脉冲的FFT
+    fft_current = fft(mat_time(i,:), 6*N);
+    fft_current_db = 20 * log10(abs(fft_current));
+    
+    % 找出最大散射体的速度
+    [~, max_idx] = max(fft_current_db);
+    current_velocity = velocity(max_idx);
+    
+    % 记录当前时间和速度
+    velocity_trace = [velocity_trace, current_velocity];
+    time_trace = [time_trace, Tp * i];
+    
+    % 绘制当前所有的点，而不是逐个点
+    plot(time_trace, velocity_trace, 'ro-');
+    xlabel('time (s)');
+    ylabel('v (m/s)');
+    title('real-time/pseudo real-time velocity measurements');
+    xlim([0, num_pulse * Tp]);
+    ylim([0, 2]);  % 调整Y轴范围，使其更符合实际速度
+    grid on;
+    
+    % 将当前帧写入视频
+    drawnow; % 确保图形刷新
+    frame = getframe(gcf); % 获取完整的图像
+    writeVideo(video_cw, frame);
+end
+close(video_cw);
