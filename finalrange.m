@@ -4,95 +4,124 @@ clc;
 
 
 % Read the audiofile
-[y,Fs] = audioread('fmcw_double_opposite.wav'); 
-numRidges = 2; % Amout of targets
+[y,Fs] = audioread('fmcw_double_opposite.wav');%single_target_range.wav'); 
+numRidges = 2; %Number of targets
 
-% inversion by the sound card
-data = -y(:,1); % Radar backscatter data (received reflected signal)
-sync = -y(:,2); % Sync data (square waveform)
-
+data = -y(:,1);
+sync = -y(:,2); 
 % Parameters
 c = 3e8;                % Speed of light [m/s]
 f_start = 2.408e9;            % Start Frequency [Hz]
 f_stop = 2.495e9;             % Stop Frequency  [Hz]
 bandwidth = f_stop - f_start; % [Hz]
+f_center = (f_start + f_stop)/2;
+Tp = 20e-3;                   % Pulse width (up-chirp) [s]
+N = Tp * Fs;                  % Number of samples per up-chrip pulse
 dr = c / (2*bandwidth);       % Range resolution [m]
-Tp = 20e-3;                   % Pulse width [s]
-N = Tp * Fs;                  % Number of samples per pulse
 max_range = (N * dr)/2;       % Maximum range [m]
 
-fridgeLimit = 25;
-fridgeLength = round((2*bandwidth*fridgeLimit*4)/c); % To limit the search of tfridge
-freqs = linspace(fridgeLimit, 0, fridgeLength);
-range = linspace(0, max_range, 4*N);
+%% Define search limits and frequency ranges for range and velocity extraction
+fridgeLimitRange = 25;
+fridgeLengthRange = round(8 * bandwidth * fridgeLimitRange / c); % Factor 4*2 combined for compactness
+freqsRange = linspace(fridgeLimitRange, 0, fridgeLengthRange);
 
-% Parse up-chirp data according to the sync data
-sync_pulse = [(sync > 0), (1:length(sync)).']; % Create a matrix with sync square waveform and indexes
+fridgeLimitVel = 10;
+fridgeLengthVel = round(8 * f_center * fridgeLimitVel / c); % Factor 4*2 combined for compactness
+freqsVel = linspace(fridgeLimitVel, 0, fridgeLengthVel);
+
+% Define range vector
+range = linspace(0, max_range, 4 * N);
+
+%% Parse sync data and store indices of positive sync values
+sync_pulse = [(sync > 0), (1:length(sync)).']; % Create a matrix with sync square waveform and indices
 
 % Find indices where the sync signal is positive
-time_temp = find(sync > 0);
+time_temp = find(sync_pulse(:, 1) == 1);
 
 
-% Build the matrix where timesteps are row-wise
+%% Build the matrix where timesteps are row-wise
 up_data_parsed = zeros([], N); % Pre-allocate 
+down_data_parsed = zeros([],N);
 time = zeros(1,[]);            % Same
 k = 1;
-for i = 2:(size(sync_pulse)-N) 
+for i = 2:(size(sync_pulse)-2*N) 
     if sync_pulse(i,1) == 1 && sync_pulse(i-1) == 0 % First value of a row = first up-chirp value
         up_data_parsed(k,:) = data(i:i+N-1)';
+        down_data_parsed(k,:) = data(i+N:i+2*N-1)';
         time(1,k) = sync_pulse(i,2) / Fs;
         k = k + 1;
     end
 end
 
-% MS Clutter Rejection
-final_data = bsxfun(@minus, up_data_parsed, mean(up_data_parsed, 1)); % Subtract column mean to each column
+%% MS Clutter Rejection
+up_data_parsed = bsxfun(@minus, up_data_parsed, mean(up_data_parsed, 1)); % Subtract column mean to each column
+down_data_parsed = bsxfun(@minus, down_data_parsed, mean(down_data_parsed, 1)); % Subtract column mean to each column
 
-%% 3-step MTI using vectorized indexing
-MTI3 = [zeros(2, size(up_data_parsed, 2)); up_data_parsed(3:end, :) - 2 * up_data_parsed(2:end-1, :) + up_data_parsed(1:end-2, :)];
+%% 3-step MTI
+MTI3_up = zeros(size(up_data_parsed));
+for t = 3:size(up_data_parsed,1)
+    MTI3_up(t,:) = up_data_parsed(t,:) - 2*up_data_parsed(t-1,:) + up_data_parsed(t-2,:);
+end
+
+MTI3_down = zeros(size(down_data_parsed));
+for t = 3:size(down_data_parsed,1)
+    MTI3_down(t,:) = down_data_parsed(t,:) - 2*down_data_parsed(t-1,:) + down_data_parsed(t-2,:);
+end
+
+%% FFT Define a function for computing and normalizing the FFT of the input data
+computeFFT = @(data) max(20*log10(abs(fft(data, 4 * N, 2))), -1000000);
+
+% Compute and normalize the FFT for up-chirp and down-chirp data
+sfft_up = computeFFT(MTI3_up);
+sfft_up = sfft_up(:, 1:end/2) - max(sfft_up(:)); % Retain first half and normalize
+
+sfft_down = computeFFT(MTI3_down);
+sfft_down = sfft_down(:, 1:end/2) - max(sfft_down(:)); % Retain first half and normalize
+
+% Compute the unnormalized FFT for ridge extraction
+sfftFridgeUp = fft(MTI3_up, 4 * N, 2);
+sfftFridgeDown = fft(MTI3_down, 4 * N, 2);
+
+%% find fridges
+% Define a function to extract ridges using tfridge
+extractRidges = @(sfftFridge, rangeLength, freqs, numRidges) ...
+    tfridge(rot90(sfftFridge(:, 1:rangeLength)), freqs, 1, 'NumRidges', numRidges);
+
+% Extract ridges for up-chirp and down-chirp data
+fridge_up = extractRidges(sfftFridgeUp, fridgeLengthRange, freqsRange, numRidges);
+fridge_down = extractRidges(sfftFridgeDown, fridgeLengthRange, freqsRange, numRidges);
+
+% Compute beat frequency, range, Doppler frequency, and velocity
+f_beat = (fridge_down + fridge_up) / 2;
+rangeExtracted = 15 * (f_beat * c * Tp) / bandwidth;
+
+f_doppler = (fridge_down - fridge_up) / 2;
+velExtracted = 20 * (c * f_doppler) / (2 * f_center);
 
 
-%% Compute the FFT of MTI3 with zero-padding to 4*N points along the 2nd dimension
-sfft_MTI3 = abs(fft(MTI3, 4 * N, 2));
 
-% Convert to decibels and normalize
-sfft_MTI3 = 20 * log10(sfft_MTI3);
-sfft_MTI3 = sfft_MTI3(:, 1:end/2);  % Retain only the first half (up to Nyquist)
-
-% Normalize the data to a maximum value of 0 dB
-sfft_MTI3 = sfft_MTI3 - max(sfft_MTI3(:));
-
-% Thresholding to avoid -Inf values (set a lower limit)
-sfft_MTI3 = max(sfft_MTI3, -1000000);
-
-%% Compute the FFT of MTI3 with zero-padding to 4*N points along the 2nd dimension
-sfft_fridge = fft(MTI3, 4 * N, 2);
-
-% Transpose and extract ridges using tfridge
-sfft_rotated = rot90(sfft_fridge(:, 1:fridgeLength));
-[fridge, ~, ~] = tfridge(sfft_rotated, freqs, 1, 'NumRidges', numRidges, 'NumFrequencyBins', 10);
-
-% Convert extracted ridges to range
-rangeExtracted = (15 * fridge * c * Tp) / bandwidth;
-
-
-
-%% Plot the Range-Spectrogram using imagesc
+%% Plotting
+% Plot the captured data
 figure;
 plot(data);
-title('capture data');
+title('Captured Data');
+xlabel('Sample Index');
+ylabel('Amplitude');
+grid on;
 
+% Plot the Range-Spectrogram using imagesc
 figure;
-imagesc(range, time, sfft_MTI3, [-35 0]); % Directly set color limits in imagesc
-xlim([0 25]);
+imagesc(range, time, sfft_up, [-35 0]); % Set color limits directly
+xlim([0, 25]);
 xlabel('Range (m)');
 ylabel('Time (s)');
 colorbar;
 title('Range-Spectrogram');
 
-% Plot the Range vs Time using plot
+% Plot the Range vs. Time
 figure;
 plot(time, rangeExtracted);
+title('Range vs Time');
 xlabel('Time [s]');
 ylabel('Range [m]');
-title('Range vs Time plot');
+grid on;
