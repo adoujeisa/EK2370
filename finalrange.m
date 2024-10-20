@@ -79,6 +79,10 @@ rangeExtracted = (15 * fridge * c * Tp) / bandwidth;
 
 %% Plot the Range-Spectrogram using imagesc
 figure;
+plot(data);
+title('capture data');
+
+figure;
 imagesc(range, time, sfft_MTI3, [-35 0]); % Directly set color limits in imagesc
 xlim([0 25]);
 xlabel('Range (m)');
